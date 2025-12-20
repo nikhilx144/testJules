@@ -72,6 +72,13 @@ if st.button("🚀 Start Evaluation"):
             status = st.empty()
 
             try:
+                # Create session explicitly (Required for run_async)
+                await runner.session_service.create_session(
+                    app_name=runner.app_name,
+                    user_id="user",
+                    session_id="session"
+                )
+
                 # We need to trigger the execution.
                 # ParallelAgent typically responds to a user message to start.
                 # We'll send a "Start" message.
