@@ -7,6 +7,8 @@ import os
 import PyPDF2
 import traceback
 from dotenv import load_dotenv
+import tempfile
+import google.auth.exceptions
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,6 +26,7 @@ st.title("🏛️ Autonomous AI-Powered Government Bid Evaluation System")
 
 # Sidebar - Configuration
 with st.sidebar.expander("Configuration", expanded=True):
+    st.markdown("### Google Cloud Setup")
     project_id = st.text_input("Google Cloud Project ID", value=os.getenv("GOOGLE_CLOUD_PROJECT", ""))
     location = st.text_input("Google Cloud Location", value=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"))
 
@@ -34,6 +37,26 @@ with st.sidebar.expander("Configuration", expanded=True):
 
     # Force Vertex AI mode
     os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "1"
+
+    st.markdown("---")
+    st.markdown("### Authentication")
+    st.info("Ensure you have run `gcloud auth application-default login` OR upload a Service Account JSON Key below.")
+
+    # Service Account Key Upload
+    sa_file = st.file_uploader("Upload Service Account Key (JSON)", type=["json"], help="Optional: Upload only if you haven't set up ADC locally.")
+
+    if sa_file:
+        try:
+            # Save the uploaded file to a temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp_file:
+                tmp_file.write(sa_file.getvalue())
+                tmp_path = tmp_file.name
+
+            # Set the environment variable
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = tmp_path
+            st.success("Service Account Key applied!")
+        except Exception as e:
+            st.error(f"Error handling key file: {e}")
 
 # Sidebar
 st.sidebar.header("1. Upload RFP")
@@ -126,21 +149,43 @@ if st.button("🚀 Start Evaluation"):
 
                             status.text(f"Processing report for {source}...")
             except Exception as e:
-                # Enhanced Error Logging
-                err_msg = f"Execution Error: {e}"
+                # Check for DefaultCredentialsError specifically
+                is_auth_error = False
+                if isinstance(e, google.auth.exceptions.DefaultCredentialsError):
+                    is_auth_error = True
 
-                # Check for ExceptionGroup (Python 3.11+)
+                # Check sub-exceptions if ExceptionGroup
                 if hasattr(e, 'exceptions'):
-                    err_msg += "\n\nSub-exceptions:"
-                    for idx, sub_e in enumerate(e.exceptions):
-                        err_msg += f"\n{idx+1}. {sub_e}"
+                    for sub_e in e.exceptions:
+                        if isinstance(sub_e, google.auth.exceptions.DefaultCredentialsError):
+                            is_auth_error = True
+                            break
 
-                # Full traceback
-                trace = traceback.format_exc()
+                if is_auth_error:
+                    st.error("🚨 Authentication Failed!")
+                    st.warning("""
+                    **Google Cloud Credentials were not found.**
 
-                st.error(err_msg)
-                with st.expander("Detailed Traceback"):
-                    st.code(trace)
+                    Please do one of the following:
+                    1.  **Run this command in your terminal:**
+                        ```bash
+                        gcloud auth application-default login
+                        ```
+                    2.  **OR Upload a Service Account JSON Key** in the Configuration sidebar.
+                    """)
+                else:
+                    # Enhanced Error Logging for other errors
+                    err_msg = f"Execution Error: {e}"
+
+                    if hasattr(e, 'exceptions'):
+                        err_msg += "\n\nSub-exceptions:"
+                        for idx, sub_e in enumerate(e.exceptions):
+                            err_msg += f"\n{idx+1}. {sub_e}"
+
+                    trace = traceback.format_exc()
+                    st.error(err_msg)
+                    with st.expander("Detailed Traceback"):
+                        st.code(trace)
 
             finally:
                 await runner.close()
