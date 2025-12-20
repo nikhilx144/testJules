@@ -13,20 +13,44 @@ This project is an autonomous bid evaluation system built with the Google Agent 
 *   `report_generator_agent/`: Generates the final scored report.
 *   `streamlit_app.py`: The user interface.
 
-## Creation Commands (ADK)
+## Setup & Authentication
 
-The following commands were used to create the agents:
+You do **not** need to use `adk create` if you are using this code directly. However, you must configure authentication and project details.
 
-```bash
-adk create requirement_extractor_agent
-adk create technical_compliance_agent
-adk create financial_analyzer_agent
-adk create risk_assessor_agent
-adk create report_generator_agent
-adk create root_agent
+### 1. Configure Environment Variables
+The code includes `.env` files in each agent directory. You must update them with your Google Cloud Project ID.
+
+**Manual Update:**
+Open `.env` in each agent folder and set:
+```
+GOOGLE_CLOUD_PROJECT=your-actual-project-id
 ```
 
-(Interactive inputs were provided: Model: `gemini-2.5-flash`, Backend: `Vertex AI`, Project ID: `<your-project-id>`, Region: `us-central1`)
+**Or using sed (Linux/Mac):**
+```bash
+find . -name ".env" -exec sed -i 's/YOUR_PROJECT_ID/your-actual-project-id/g' {} +
+```
+
+### 2. Authentication
+This system uses Vertex AI, so you need Application Default Credentials (ADC).
+
+Run the following command in your terminal:
+```bash
+gcloud auth application-default login
+```
+(Note: `gcloud auth login` alone is often insufficient for Python client libraries; `application-default` is recommended.)
+
+## Running the System
+
+1.  **Install dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+2.  **Run the Streamlit App:**
+    ```bash
+    streamlit run streamlit_app.py
+    ```
 
 ## Deployment (Cloud Run)
 
@@ -38,16 +62,4 @@ adk create root_agent
 2.  **Deploy:**
     ```bash
     gcloud run deploy bid-eval-system --image gcr.io/YOUR_PROJECT_ID/bid-eval-system --platform managed --allow-unauthenticated
-    ```
-
-## Running Locally
-
-1.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-2.  Run the app:
-    ```bash
-    streamlit run streamlit_app.py
     ```
