@@ -1,7 +1,7 @@
 import streamlit as st
 import asyncio
 import re
-from google.adk.types import ModelGenMsgEvent
+from google.adk.events.event import Event
 import sys
 import os
 
@@ -52,18 +52,24 @@ if st.button("🚀 Start Evaluation"):
             try:
                 # Iterate over the async generator
                 async for event in parallel_agent.run_async(ctx):
-                    if isinstance(event, ModelGenMsgEvent):
+                    if isinstance(event, Event):
                         # Attempt to identify source agent.
-                        # We try both 'source' and 'agent_name' attributes.
+                        # We try both 'source' and 'author' attributes.
                         source = getattr(event, 'source', None)
                         if not source:
-                            source = getattr(event, 'agent_name', None)
+                            source = getattr(event, 'author', None) # Event has 'author'
 
                         # Only capture from report generators
                         if source and str(source).startswith("report_gen_"):
                             if source not in accumulators:
                                 accumulators[source] = ""
-                            accumulators[source] += event.text
+
+                            # Extract text content
+                            if event.content and event.content.parts:
+                                for part in event.content.parts:
+                                    if part.text:
+                                        accumulators[source] += part.text
+
                             status.text(f"Processing report for {source}...")
 
             except Exception as e:

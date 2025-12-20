@@ -4,7 +4,7 @@ from google.adk.agents.llm_agent import Agent
 from google.adk.agents.sequential_agent import SequentialAgent
 from google.adk.agents.parallel_agent import ParallelAgent
 from google.adk.agents.invocation_context import InvocationContext
-from google.adk.types import Event, ModelGenMsgEvent
+from google.adk.events.event import Event
 
 # Import the definitions of the leaf agents
 # Assumes the parent directory (bid_evaluation_system) is in PYTHONPATH
@@ -44,14 +44,12 @@ async def run_bid_evaluation(rfp_text: str, vendor_bids: List[dict]):
         )
 
         # 2. Construct Chain with Cloned Agents for Safety
-        # ADK Agents might be stateful. We clone them to be safe.
-        # Assuming .clone() exists based on previous inspection.
-        # If .clone() is deep, it's good. If not, we rely on definition reuse being safe if context is external.
+        # ADK Agents (Pydantic models) support model_copy.
 
         safe_v_name = v_name.replace(" ", "_").replace(".", "")
 
         # Report generator needs unique name for streaming capture
-        report_gen = report_generator_agent.clone()
+        report_gen = report_generator_agent.model_copy(deep=True)
         report_gen.name = f"report_gen_{safe_v_name}"
 
         chain = SequentialAgent(
@@ -59,10 +57,10 @@ async def run_bid_evaluation(rfp_text: str, vendor_bids: List[dict]):
             description=f"Evaluation chain for {v_name}",
             sub_agents=[
                 injector,
-                requirement_extractor_agent.clone(),
-                technical_compliance_agent.clone(),
-                financial_analyzer_agent.clone(),
-                risk_assessor_agent.clone(),
+                requirement_extractor_agent.model_copy(deep=True),
+                technical_compliance_agent.model_copy(deep=True),
+                financial_analyzer_agent.model_copy(deep=True),
+                risk_assessor_agent.model_copy(deep=True),
                 report_gen
             ]
         )
