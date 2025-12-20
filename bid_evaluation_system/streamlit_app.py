@@ -5,6 +5,7 @@ from google.adk.events.event import Event
 import sys
 import os
 import PyPDF2
+import traceback
 
 # Add the directory containing the agent modules to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -106,7 +107,24 @@ if st.button("🚀 Start Evaluation"):
 
                             status.text(f"Processing report for {source}...")
             except Exception as e:
-                st.error(f"Execution Error: {e}")
+                # Enhanced Error Logging
+                err_msg = f"Execution Error: {e}"
+
+                # Check for ExceptionGroup (Python 3.11+)
+                if hasattr(e, 'exceptions'):
+                    err_msg += "\n\nSub-exceptions:"
+                    for idx, sub_e in enumerate(e.exceptions):
+                        err_msg += f"\n{idx+1}. {sub_e}"
+                        # Also print traceback for sub-exceptions if possible
+                        # err_msg += f"\n{traceback.format_exception_only(type(sub_e), sub_e)}"
+
+                # Full traceback
+                trace = traceback.format_exc()
+
+                st.error(err_msg)
+                with st.expander("Detailed Traceback"):
+                    st.code(trace)
+
             finally:
                 await runner.close()
 
@@ -144,7 +162,7 @@ if st.button("🚀 Start Evaluation"):
                         mime="text/markdown"
                     )
         else:
-            st.warning("No reports generated. If this is a test without valid credentials, this is expected.")
+            st.warning("No reports generated. Check the error details above.")
 
 st.markdown("---")
 st.markdown("Developed with Google ADK")
