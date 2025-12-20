@@ -4,13 +4,14 @@ import re
 from google.adk.events.event import Event
 import sys
 import os
+import PyPDF2
 
 # Add the directory containing the agent modules to sys.path
-# This makes 'root_agent', 'requirement_extractor_agent', etc. importable as top-level modules.
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from root_agent.agent import run_bid_evaluation
-from google.adk.agents.invocation_context import InvocationContext
+from google.adk.runners import InMemoryRunner
+from google.genai import types
 
 st.set_page_config(page_title="Autonomous Bid Evaluation System", layout="wide")
 
@@ -18,15 +19,33 @@ st.title("🏛️ Autonomous AI-Powered Government Bid Evaluation System")
 
 # Sidebar
 st.sidebar.header("1. Upload RFP")
-rfp_file = st.sidebar.file_uploader("Upload RFP", type=["txt"])
-rfp_text = rfp_file.read().decode("utf-8") if rfp_file else ""
+rfp_file = st.sidebar.file_uploader("Upload RFP (PDF)", type=["pdf"])
+rfp_text = ""
+
+if rfp_file:
+    try:
+        pdf_reader = PyPDF2.PdfReader(rfp_file)
+        for page in pdf_reader.pages:
+            rfp_text += page.extract_text() or ""
+    except Exception as e:
+        st.error(f"Error reading RFP PDF: {e}")
 
 st.sidebar.header("2. Upload Vendor Bids")
-bid_files = st.sidebar.file_uploader("Upload Bids", type=["txt"], accept_multiple_files=True)
+bid_files = st.sidebar.file_uploader("Upload Bids (Max 5 PDFs)", type=["pdf"], accept_multiple_files=True)
 vendor_bids = []
 if bid_files:
-    for f in bid_files:
-        vendor_bids.append({"name": f.name.split('.')[0], "text": f.read().decode("utf-8")})
+    if len(bid_files) > 5:
+        st.error("Max 5 vendor bids allowed.")
+    else:
+        for f in bid_files:
+            try:
+                text = ""
+                pdf_reader = PyPDF2.PdfReader(f)
+                for page in pdf_reader.pages:
+                    text += page.extract_text() or ""
+                vendor_bids.append({"name": f.name.split('.')[0], "text": text})
+            except Exception as e:
+                st.error(f"Error reading Bid PDF {f.name}: {e}")
 
 def extract_score(text):
     match = re.search(r"Overall Score:\s*(\d+)/100", text)
@@ -36,44 +55,53 @@ def extract_score(text):
 
 if st.button("🚀 Start Evaluation"):
     if not rfp_text or not vendor_bids:
-        st.error("Please upload RFP and Bids.")
+        st.error("Please upload RFP and Bids (PDFs).")
+    elif len(bid_files) > 5:
+        st.error("Max 5 vendor bids allowed.")
     else:
         st.info("Initializing Agents...")
 
         async def run_and_capture():
+            # Get the parallel agent from the orchestrator
             parallel_agent = await run_bid_evaluation(rfp_text, vendor_bids)
-            ctx = InvocationContext()
+
+            # Use InMemoryRunner to handle context and execution
+            runner = InMemoryRunner(agent=parallel_agent)
 
             accumulators = {} # agent_name -> text
-
-            # Use columns for logs if needed, or just status
             status = st.empty()
 
             try:
-                # Iterate over the async generator
-                async for event in parallel_agent.run_async(ctx):
+                # We need to trigger the execution.
+                # ParallelAgent typically responds to a user message to start.
+                # We'll send a "Start" message.
+
+                async for event in runner.run_async(
+                    user_id="user",
+                    session_id="session",
+                    new_message=types.Content(parts=[types.Part(text="Start Evaluation")])
+                ):
                     if isinstance(event, Event):
                         # Attempt to identify source agent.
-                        # We try both 'source' and 'author' attributes.
                         source = getattr(event, 'source', None)
                         if not source:
-                            source = getattr(event, 'author', None) # Event has 'author'
+                            source = getattr(event, 'author', None)
 
                         # Only capture from report generators
                         if source and str(source).startswith("report_gen_"):
                             if source not in accumulators:
                                 accumulators[source] = ""
 
-                            # Extract text content
                             if event.content and event.content.parts:
                                 for part in event.content.parts:
                                     if part.text:
                                         accumulators[source] += part.text
 
                             status.text(f"Processing report for {source}...")
-
             except Exception as e:
                 st.error(f"Execution Error: {e}")
+            finally:
+                await runner.close()
 
             return accumulators
 
