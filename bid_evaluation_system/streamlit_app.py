@@ -6,6 +6,10 @@ import sys
 import os
 import PyPDF2
 import traceback
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the directory containing the agent modules to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -17,6 +21,19 @@ from google.genai import types
 st.set_page_config(page_title="Autonomous Bid Evaluation System", layout="wide")
 
 st.title("🏛️ Autonomous AI-Powered Government Bid Evaluation System")
+
+# Sidebar - Configuration
+with st.sidebar.expander("Configuration", expanded=True):
+    project_id = st.text_input("Google Cloud Project ID", value=os.getenv("GOOGLE_CLOUD_PROJECT", ""))
+    location = st.text_input("Google Cloud Location", value=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"))
+
+    if project_id:
+        os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
+    if location:
+        os.environ["GOOGLE_CLOUD_LOCATION"] = location
+
+    # Force Vertex AI mode
+    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "1"
 
 # Sidebar
 st.sidebar.header("1. Upload RFP")
@@ -55,7 +72,9 @@ def extract_score(text):
     return 0
 
 if st.button("🚀 Start Evaluation"):
-    if not rfp_text or not vendor_bids:
+    if not project_id:
+        st.error("Please enter a Google Cloud Project ID in the Configuration section.")
+    elif not rfp_text or not vendor_bids:
         st.error("Please upload RFP and Bids (PDFs).")
     elif len(bid_files) > 5:
         st.error("Max 5 vendor bids allowed.")
@@ -115,8 +134,6 @@ if st.button("🚀 Start Evaluation"):
                     err_msg += "\n\nSub-exceptions:"
                     for idx, sub_e in enumerate(e.exceptions):
                         err_msg += f"\n{idx+1}. {sub_e}"
-                        # Also print traceback for sub-exceptions if possible
-                        # err_msg += f"\n{traceback.format_exception_only(type(sub_e), sub_e)}"
 
                 # Full traceback
                 trace = traceback.format_exc()
