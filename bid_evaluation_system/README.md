@@ -15,42 +15,50 @@ This project is an autonomous bid evaluation system built with the Google Agent 
 
 ## Setup & Authentication
 
-You do **not** need to use `adk create` if you are using this code directly. However, you must configure authentication and project details.
-
 ### 1. Configure Environment Variables
-The code includes `.env` files in each agent directory. You must update them with your Google Cloud Project ID.
-
-**Manual Update:**
-Open `.env` in each agent folder and set:
-```
-GOOGLE_CLOUD_PROJECT=your-actual-project-id
-```
-
-**Or using sed (Linux/Mac):**
-```bash
-find . -name ".env" -exec sed -i 's/YOUR_PROJECT_ID/your-actual-project-id/g' {} +
-```
+The code includes `.env` files. You can set your Project ID there or in the UI.
+For Docker, you can pass them as environment variables.
 
 ### 2. Authentication
-This system uses Vertex AI, so you need Application Default Credentials (ADC).
+This system uses Vertex AI, so you need Google Cloud credentials.
 
-Run the following command in your terminal:
+**Option A: Service Account Key (Recommended for Docker)**
+1.  Create a Service Account in Google Cloud Console.
+2.  Grant it `Vertex AI User` role.
+3.  Download the JSON key.
+4.  Upload this JSON key in the Streamlit UI Sidebar.
+
+**Option B: Local gcloud Credentials (ADC)**
+1.  Run `gcloud auth application-default login` on your host machine.
+2.  Mount the credentials into the container (see below).
+
+## Docker Instructions
+
+### 1. Build the Image
 ```bash
-gcloud auth application-default login
+docker build -t bid-eval-system .
 ```
-(Note: `gcloud auth login` alone is often insufficient for Python client libraries; `application-default` is recommended.)
 
-## Running the System
+### 2. Run Locally
+**Simple Run (Use UI to upload Key):**
+```bash
+docker run -p 8080:8080 bid-eval-system
+```
+Open [http://localhost:8080](http://localhost:8080). You will need to upload your Service Account JSON key in the sidebar configuration.
 
-1.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+**Advanced Run (Mount Local Credentials):**
+If you have run `gcloud auth application-default login` on your host (Linux/Mac), you can mount the credentials:
+```bash
+docker run -p 8080:8080 \
+  -v $HOME/.config/gcloud:/root/.config/gcloud \
+  bid-eval-system
+```
 
-2.  **Run the Streamlit App:**
-    ```bash
-    streamlit run streamlit_app.py
-    ```
+### 3. Using Docker Compose
+A `docker-compose.yml` is provided.
+```bash
+docker-compose up --build
+```
 
 ## Deployment (Cloud Run)
 
@@ -62,4 +70,16 @@ gcloud auth application-default login
 2.  **Deploy:**
     ```bash
     gcloud run deploy bid-eval-system --image gcr.io/YOUR_PROJECT_ID/bid-eval-system --platform managed --allow-unauthenticated
+    ```
+
+## Local Python Execution (No Docker)
+
+1.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+2.  Run the app:
+    ```bash
+    streamlit run streamlit_app.py
     ```

@@ -1,0 +1,12 @@
+services:
+  bid-eval-system:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
+      - GOOGLE_GENAI_USE_VERTEXAI=1
+    # Uncomment the following lines to mount your local gcloud credentials
+    # volumes:
+    #   - ~/.config/gcloud:/root/.config/gcloud
