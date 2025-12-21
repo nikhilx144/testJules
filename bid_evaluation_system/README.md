@@ -3,6 +3,53 @@
 
 This project is an autonomous bid evaluation system built with the Google Agent Development Kit (ADK) and Gemini 2.5 Flash. It evaluates multiple vendor bids against a single RFP using a multi-agent workflow.
 
+## System Architecture
+
+```mermaid
+graph TD
+    subgraph User_Interface [Streamlit UI]
+        User((User)) -->|1. Uploads PDF RFP + Bids| UI[Streamlit App]
+        UI -->|2. Configures Project/Auth| UI
+        UI -->|3. Starts Evaluation| Root[Root Agent Orchestrator]
+    end
+
+    subgraph ADK_Orchestration [ADK Agent Graph]
+        Root -->|4. Creates Dynamic Chains| Parallel[ParallelAgent]
+
+        subgraph Vendor_Chain_1 [SequentialChain: Vendor A]
+            Inject1[Injector Agent] --> Extract1[Requirement Extractor]
+            Extract1 --> Tech1[Technical Compliance]
+            Tech1 --> Fin1[Financial Analyzer]
+            Fin1 --> Risk1[Risk Assessor]
+            Risk1 --> Report1[Report Generator]
+        end
+
+        subgraph Vendor_Chain_N [SequentialChain: Vendor N]
+            InjectN[Injector Agent] --> ExtractN[Requirement Extractor]
+            ExtractN --> TechN[Technical Compliance]
+            TechN --> FinN[Financial Analyzer]
+            FinN --> RiskN[Risk Assessor]
+            RiskN --> ReportN[Report Generator]
+        end
+
+        Parallel -->|Run Concurrently| Vendor_Chain_1
+        Parallel -->|Run Concurrently| Vendor_Chain_N
+    end
+
+    subgraph Output_Processing [Result Aggregation]
+        Report1 -->|Stream Event| Aggregator[Result Capture Loop]
+        ReportN -->|Stream Event| Aggregator
+        Aggregator -->|5. Parsed Scores & Reports| UI
+    end
+
+    UI -->|6. Display Ranking & Download| User
+
+    style Root fill:#f9f,stroke:#333,stroke-width:2px
+    style Parallel fill:#bbf,stroke:#333,stroke-width:2px
+    style Report1 fill:#bfb,stroke:#333,stroke-width:2px
+    style ReportN fill:#bfb,stroke:#333,stroke-width:2px
+```
+
 ## Structure
 
 *   `root_agent/`: The orchestrator agent.
